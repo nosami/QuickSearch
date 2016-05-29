@@ -1,0 +1,14 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<ExtensionModel>
+	<Runtime>
+	</Runtime>
+	<Extension path = "/MonoDevelop/Ide/Commands">
+		<Category _name="QuickSearch" id="QuickSearch">
+			<Command id="QuickSearch.QuickSearch"
+			         _label = "QuickJump"
+			         _description="Launch QuickSearch"
+			         macShortcut="Meta|Alt|V"
+			         defaultHandler="QuickSearch.QuickSearchHandler" />
+		</Category>
+	</Extension>
+</ExtensionModel>

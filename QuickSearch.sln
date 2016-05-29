@@ -1,0 +1,17 @@
+
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 2012
+Project("{f2a71f9b-5d33-465a-a702-920d77279786}") = "QuickSearch", "QuickSearch\QuickSearch.fsproj", "{8924E629-0255-4124-8352-8DF5B9FF0F00}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{8924E629-0255-4124-8352-8DF5B9FF0F00}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8924E629-0255-4124-8352-8DF5B9FF0F00}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8924E629-0255-4124-8352-8DF5B9FF0F00}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8924E629-0255-4124-8352-8DF5B9FF0F00}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
