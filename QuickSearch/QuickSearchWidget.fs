@@ -1,139 +1,151 @@
 namespace QuickSearch
 
+open System
+open System.Threading
 open Gtk
 open MonoDevelop.Components
+open MonoDevelop.Components.Commands
+open MonoDevelop.Ide
 open MonoDevelop.Core
 open MonoDevelop.Ide.FindInFiles
 open MonoDevelop.Ide.Gui.Components
 
+module Option =
+    let inline tryCast<'T> (o: obj): 'T option =
+        match o with
+        | null -> None
+        | :? 'T as a -> Some a
+        | _ -> None
+
 type QuickSearchWidget() as this =
     inherit HBox()
 
-    let mutable store:ListStore = null
-    
     let buttonStop:ToolButton = null
 
     let buttonPin:ToggleToolButton = null
-    
+
     let SearchResultColumn = 0;
-    let DidReadColumn      = 1;
-    
-    //ColorScheme highlightStyle;
-    
-    let mutable scrolledwindowLogView:ScrolledWindow = null
-    let mutable treeviewSearchResults:PadTreeView = null
-    let mutable labelStatus:Label = null
-    //TextView textviewLog;
-    //TreeViewColumn patrchResult>
+
+    let mutable resultCount = 0
+
+    let searchEntry = new Entry()
     do
         let vbox = new VBox ()
+
         let toolbar = new Toolbar 
                           (
                             Orientation = Orientation.Vertical,
                             IconSize = IconSize.Menu,
                             ToolbarStyle = ToolbarStyle.Icons
                           )
+
         this.PackStart (vbox, true, true, 0u)
         this.PackStart (toolbar, false, false, 0u)
-        labelStatus <- new Label (Xalign = 0.0f, Justify = Justification.Left)
+        let labelStatus = new Label (Xalign = 0.0f, Justify = Justification.Left)
         let hpaned = new HPaned ()
+
+        let store = new ListStore(typedefof<obj>)
+
+        let search() =
+            store.Clear()
+            resultCount <- 0
+            labelStatus.Text <- "0 results"
+            QuickSearch.search searchEntry.Text
+
+        let reportResult (result:QuickSearchResult) =
+            store.AppendValues([|result|]) |> ignore
+            resultCount <- resultCount + 1
+            labelStatus.Text <- if resultCount = 1 then
+                                    "1 result"
+                                else
+                                    sprintf "%d results" resultCount
+
+        searchEntry.Changed
+        |> FSharp.Control.Reactive.Observable.throttle (TimeSpan.FromMilliseconds 200.)
+        |> Observable.subscribe(fun _ -> Runtime.RunInMainThread(fun() -> search()) |> ignore) |> ignore
+
+        QuickSearch.resultReceived.Subscribe(
+            fun res -> 
+                if res.term = searchEntry.Text then 
+                    Runtime.RunInMainThread(fun() -> reportResult res) |> ignore) |> ignore
+
+        searchEntry.GrabFocus()
+        vbox.PackStart (searchEntry, false, false, 0u)
         vbox.PackStart (hpaned, true, true, 0u)
         vbox.PackStart (labelStatus, false, false, 0u)
         let resultsScroll = new CompactScrolledWindow ()
         hpaned.Pack1 (resultsScroll, true, true)
-        //scrolledwindowLogView <- new CompactScrolledWindow ()
-        //hpaned.Pack2 (scrolledwindowLogView, true, true)
-        //textviewLog <- new TextView (Editable <- false)
-        //scrolledwindowLogVi        //let x = typedefof <SearchResult>ew.Add (t//extviewLog)
 
-        let store = new ListStore(typedefof<SearchResult>, typedefof<bool>) // didRe//ad)
-        
-        treeviewSearchResults <- new PadTreeView (Model = store, HeadersClickable = true)// Rule//sHint <- true)
+        let treeviewSearchResults = new PadTreeView (Model = store, HeadersClickable = true)
 
         treeviewSearchResults.Selection.Mode <- Gtk.SelectionMode.Multiple
         resultsScroll.Add (treeviewSearchResults)
 
-        let projectColumn = new TreeViewColumn (
-                                Resizable = true,
-                                SortColumnId = 1,
-                                Title = GettextCatalog.GetString ("Project"),
-                                Sizing = TreeViewColumnSizing.Fixed,
-                                FixedWidth = 100
-                             )
+        let isNotNull x = not (isNull x)
 
-        let projectPixbufRenderer = new CellRendererImage ()
-        projectColumn.PackStart (projectPixbufRenderer, false)
-        projectColumn.SetCellDataFunc (projectPixbufRenderer, ResultProjectIconDataFunc)
+        let renderer (column: TreeViewColumn) (cell: CellRenderer) (model: TreeModel)  (iter: TreeIter) (f:QuickSearchResult -> string) =
+            let column, cell, model, iter, store = column, cell, model, iter, store
+            let renderer = cell :?> CellRendererText;
+           
+            let storeValue = model.GetValue (iter, SearchResultColumn)
+            if isNotNull storeValue then
+                let res = storeValue :?> QuickSearchResult
+                renderer.Text <- f res
+
+        let renderFileName (column: TreeViewColumn) (cell: CellRenderer) (model: TreeModel)  (iter: TreeIter) =
+            renderer column cell model iter
+                (fun res -> sprintf "%s:%d" res.filePath.FileName res.line)
+
+        let renderText (column: TreeViewColumn) (cell: CellRenderer) (model: TreeModel)  (iter: TreeIter) =
+            renderer column cell model iter (fun res -> res.text)
+
+        let renderPath (column: TreeViewColumn) (cell: CellRenderer) (model: TreeModel)  (iter: TreeIter) =
+            renderer column cell model iter (fun res -> res.filePath.ParentDirectory |> string)
+
+        let fileNameColumn = 
+            new TreeViewColumn (Resizable = true, Title = GettextCatalog.GetString ("File"), Sizing = TreeViewColumnSizing.Fixed, FixedWidth = 200)
 
         let renderer = treeviewSearchResults.TextRenderer
         renderer.Ellipsize <- Pango.EllipsizeMode.End
-        projectColumn.PackStart (renderer, true)
-        projectColumn.SetCellDataFunc (renderer, ResultProjectDataFunc)
-        treeviewSearchResults.AppendColumn (projectColumn)
-
-        let fileNameColumn = new TreeViewColumn 
-                                (
-                                    Resizable = true,
-                                    SortColumnId = 2,
-                                    Title = GettextCatalog.GetString ("File"),
-                                    Sizing = TreeViewColumnSizing.Fixed,
-                                    FixedWidth = 200
-                                )
-
-        let fileNamePixbufRenderer = new CellRendererImage ()
-        fileNameColumn.PackStart (fileNamePixbufRenderer, false)
-        fileNameColumn.SetCellDataFunc (fileNamePixbufRenderer, FileIconDataFunc)
-        
         fileNameColumn.PackStart (renderer, true)
-        fileNameColumn.SetCellDataFunc (renderer, FileNameDataFunc)
-        treeviewSearchResults.AppendColumn (fileNameColumn)
+        fileNameColumn.SetCellDataFunc (renderer, renderFileName)
+        treeviewSearchResults.AppendColumn (fileNameColumn) |> ignore
 
-
-        let textColumn = treeviewSearchResults.AppendColumn (GettextCatalog.GetString ("Text"), renderer, ResultTextDataFunc)
+        let textColumn = treeviewSearchResults.AppendColumn (GettextCatalog.GetString ("Text"), renderer, renderText)
         textColumn.Resizable <- true
         textColumn.Sizing <- TreeViewColumnSizing.Fixed
-        textColumn.FixedWidth <- 300
+        textColumn.FixedWidth <- 500
 
-        pathColumn <- treeviewSearchResults.AppendColumn (GettextCatalog.GetString ("Path"), renderer, ResultPathDataFunc)
+        let pathColumn = treeviewSearchResults.AppendColumn (GettextCatalog.GetString ("Path"), renderer, renderPath)
         pathColumn.SortColumnId <- 3
         pathColumn.Resizable <- true
         pathColumn.Sizing <- TreeViewColumnSizing.Fixed
         pathColumn.FixedWidth <- 500
 
-        ////store.DefaultSortFunc <- DefaultSortFunc
-        //store.//SetSortFunc (1, CompareProjectFileNames)
-        ////store.SetSortFunc (2, CompareFileNames)
-        ////store.SetSortFunc (3, CompareFilePaths)
-
-        //treeviewSearchResults.RowActivated +<- T//reeviewSearchResultsRowActivated
-        
-        //buttonStop <- new ToolButton (new ImageView (Gui.Stock.Stop, Gtk.IconSize.Menu), null, S//ensitive <- false)// { Sensitive <- false }
-      //  //buttonStop.Clicked +<- ButtonStopClicked
-        //buttonStop.Too//ltipText <- GettextCatalog.GetString ("St//op")
-        //toolbar.Insert (buttonStop, -1)
-
-        //let buttonClear <- new ToolButton (new ImageVi//ew (Gui.Stock.Clear, Gtk.IconSize.Menu), null)
-     //   //buttonClear.Clicked +<- ButtonClearClicked
-        //buttonClear.TooltipTex//t <- GettextCatalog.GetString ("Clear results")
-  //      toolbar.Insert (buttonClear, -1)
-        
-   //     let buttonOutput <- new ToggleToolButton ()
-        //buttonOutput.IconWidget <- new Ima//geView (Gui.Stock.OutputIcon, Gtk.IconSize.Menu)
-     //   //buttonOutput.Clicked +<- ButtonOutputClicked
-        //buttonOutput.TooltipText <- GettextCatalog.GetString ("Show output")
- //       toolbar.Insert (buttonOutput, -1)
-      //  
-        //buttonPin <- new ToggleToolButton ()
-        //buttonPin.IconWidget <- n//ew ImageView (Gui.Stock.PinUp, Gtk.IconSize.Menu//)
-        //buttonPin.Clicked +<- ButtonPinClicked
-        //buttonPin.TooltipT//ext <- GettextCatalog.GetString ("Pin resu//lts pad")
-        //toolbar.Insert (buttonPin, -1)
-
-     //   // store.SetSortColumnId (3, S//ortType.Ascending)
         this.ShowAll ()
         
-        scrolledwindowLogView.Hide ()
-   //     treeviewSearchResults//.FixedHeightMode <- true
+        treeviewSearchResults.FixedHeightMode <- true
 
-        //UpdateStyles ()
-        //IdeApp.Preferences.ColorScheme.Changed +<- UpdateStyles
+        let openSelectedMatches _e =
+            for path in treeviewSearchResults.Selection.GetSelectedRows() do
+                let iter : TreeIter ref = ref Unchecked.defaultof<_>
+                let res = store.GetIter(iter, path)
+                if res then
+                    let result = store.GetValue (!iter, SearchResultColumn) :?> QuickSearchResult
+                    IdeApp.Workbench.OpenDocument (result.filePath, null, result.line, 0) |> ignore
+
+        treeviewSearchResults.RowActivated.Add openSelectedMatches
+
+type QuickSearchPad() =
+    inherit MonoDevelop.Ide.Gui.PadContent()
+    let view = new QuickSearchWidget()
+
+    override x.Control = Control.op_Implicit view
+
+type QuickSearchHandler() =
+    inherit CommandHandler()
+
+    [<CommandHandler("QuickSearch.QuickSearch")>]
+    override x.Run() = 
+        let guipad = IdeApp.Workbench.GetPad<QuickSearchPad>()
+        guipad.BringToFront()

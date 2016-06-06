@@ -11,4 +11,7 @@
 			         defaultHandler="QuickSearch.QuickSearchHandler" />
 		</Category>
 	</Extension>
+	<Extension path="/MonoDevelop/Ide/Pads">
+        <Pad id="QuickSearch.QuickSearchPad" defaultPlacement="Bottom" _label="Quick Search" icon="md-magnify" class="QuickSearch.QuickSearchPad" />
+    </Extension>
 </ExtensionModel>
