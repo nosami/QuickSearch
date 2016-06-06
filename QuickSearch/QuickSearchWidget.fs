@@ -17,6 +17,14 @@ module Option =
         | :? 'T as a -> Some a
         | _ -> None
 
+[<AutoOpen>]
+module Nullables =
+    type NullBuilder() =
+        member x.Return(v) = v
+        member x.ReturnFrom(v) = v
+        member x.Bind(v, f) = if (box v) = null then null else f v
+    let nullable = NullBuilder()
+
 type QuickSearchWidget() as this =
     inherit HBox()
 
@@ -147,8 +155,18 @@ type QuickSearchHandler() =
     inherit CommandHandler()
 
     [<CommandHandler("QuickSearch.QuickSearch")>]
-    override x.Run() = 
+    override x.Run() =
         let guipad = IdeApp.Workbench.GetPad<QuickSearchPad>()
         guipad.BringToFront()
         let quicksearchPad = guipad.Content :?> QuickSearchPad
         quicksearchPad.SearchEntry.GrabFocus()
+
+        let selectedText =
+            nullable {
+                let! doc = IdeApp.Workbench.ActiveDocument
+                let! editor = doc.Editor
+                return! editor.SelectedText
+            }
+        selectedText 
+        |> Option.ofObj
+        |> Option.iter (fun text -> quicksearchPad.SearchEntry.Text <- text)
