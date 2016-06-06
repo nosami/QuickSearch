@@ -46,8 +46,8 @@ type QuickSearchWidget() as this =
 
         let store = new ListStore(typedefof<obj>)
 
-        let search() =
-            store.Clear()
+        let search _e =
+            Runtime.RunInMainThread(fun() -> store.Clear()) |> ignore
             resultCount <- 0
             labelStatus.Text <- "0 results"
             QuickSearch.search searchEntry.Text
@@ -61,8 +61,8 @@ type QuickSearchWidget() as this =
                                     sprintf "%d results" resultCount
 
         searchEntry.Changed
-        |> FSharp.Control.Reactive.Observable.throttle (TimeSpan.FromMilliseconds 200.)
-        |> Observable.subscribe(fun _ -> Runtime.RunInMainThread(fun() -> search()) |> ignore) |> ignore
+        |> FSharp.Control.Reactive.Observable.throttle (TimeSpan.FromMilliseconds 350.)
+        |> Observable.subscribe search |> ignore
 
         QuickSearch.resultReceived.Subscribe(
             fun res -> 
@@ -135,11 +135,12 @@ type QuickSearchWidget() as this =
                     IdeApp.Workbench.OpenDocument (result.filePath, null, result.line, 0) |> ignore
 
         treeviewSearchResults.RowActivated.Add openSelectedMatches
+    member x.SearchEntry = searchEntry
 
 type QuickSearchPad() =
     inherit MonoDevelop.Ide.Gui.PadContent()
     let view = new QuickSearchWidget()
-
+    member x.SearchEntry = view.SearchEntry
     override x.Control = Control.op_Implicit view
 
 type QuickSearchHandler() =
@@ -149,3 +150,5 @@ type QuickSearchHandler() =
     override x.Run() = 
         let guipad = IdeApp.Workbench.GetPad<QuickSearchPad>()
         guipad.BringToFront()
+        let quicksearchPad = guipad.Content :?> QuickSearchPad
+        quicksearchPad.SearchEntry.GrabFocus()

@@ -59,7 +59,7 @@ module QuickSearch =
 
                 let solutionPath = solution.BaseDirectory |> string;
 
-                let searchProcess = getProcess (sprintf "exec mdfind -onlyin %s %s | egrep --line-buffered \"\\\\.(cs|fs)$\" | xargs grep -inH --byte-offset %s" solutionPath term term)
+                let searchProcess = getProcess (sprintf "mdfind -onlyin %s %s | egrep --line-buffered \"\\\\.(cs|fs)$\" | xargs grep --line-buffered -inH --byte-offset %s" solutionPath term term)
 
                 let outputDisposable =
                     searchProcess.OutputDataReceived
