@@ -1,0 +1,7 @@
+<AddinProject appVersion="6.0">
+    <Project platforms="Mac">
+        <AddinFile>QuickSearch/bin/Debug/QuickSearch.dll</AddinFile>
+        <BuildFile>QuickSearch.sln</BuildFile>
+        <BuildConfiguration>Debug</BuildConfiguration>
+    </Project>
+</AddinProject>
