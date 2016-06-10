@@ -14,20 +14,3 @@ type QuickSearchDocumentContext(filename) =
     override x.Name = filename
     override x.AnalysisDocument with get() = null
     override x.UpdateParseDocument() = Task.FromResult null
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

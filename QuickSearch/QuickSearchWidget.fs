@@ -183,10 +183,11 @@ type QuickSearchWidget() as this =
         |> FSharp.Control.Reactive.Observable.throttle (TimeSpan.FromMilliseconds 350.)
         |> Observable.subscribe(fun(_args) -> runInMainThread previewChanged)
 
+    let disposable = 
+        FSharp.Control.Reactive.Disposables.compose [searchEntryDisposable; resultReceivedDisposable; selectionChangedDisposable] 
+
     member x.SearchEntry = searchEntry
-    override x.Dispose() = 
-        [searchEntryDisposable; resultReceivedDisposable; selectionChangedDisposable] 
-        |> Seq.iter(fun d -> d.Dispose())
+    override x.Dispose() = disposable.Dispose()
 
 type QuickSearchPad() =
     inherit MonoDevelop.Ide.Gui.PadContent()
