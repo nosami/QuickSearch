@@ -38,6 +38,7 @@
     <Compile Include="Properties\AssemblyInfo.fs" />
     <Compile Include="Properties\AddinInfo.fs" />
     <Compile Include="QuickSearch.fs" />
+    <Compile Include="QuickSearchDocumentContext.fs" />
     <Compile Include="QuickSearchWidget.fs" />
   </ItemGroup>
   <ItemGroup>
@@ -62,6 +63,9 @@
     <Reference Include="FSharp.Core">
       <HintPath>..\packages\FSharp.Core.4.0.0.1\lib\net40\FSharp.Core.dll</HintPath>
     </Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <AddinReference Include="MonoDevelop.SourceEditor2" />
   </ItemGroup>
   <Import Project="$(FSharpTargetsPath)" />
   <Import Project="..\packages\MonoDevelop.Addins.0.3.3\build\net40\MonoDevelop.Addins.targets" Condition="Exists('..\packages\MonoDevelop.Addins.0.3.3\build\net40\MonoDevelop.Addins.targets')" />

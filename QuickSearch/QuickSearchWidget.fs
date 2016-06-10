@@ -9,13 +9,7 @@ open MonoDevelop.Ide
 open MonoDevelop.Core
 open MonoDevelop.Ide.FindInFiles
 open MonoDevelop.Ide.Gui.Components
-
-module Option =
-    let inline tryCast<'T> (o: obj): 'T option =
-        match o with
-        | null -> None
-        | :? 'T as a -> Some a
-        | _ -> None
+open MonoDevelop.Ide.Editor
 
 [<AutoOpen>]
 module Nullables =
@@ -26,7 +20,7 @@ module Nullables =
     let nullable = NullBuilder()
 
 type QuickSearchWidget() as this =
-    inherit HBox()
+    inherit HPaned()
 
     let buttonStop:ToolButton = null
 
@@ -37,54 +31,41 @@ type QuickSearchWidget() as this =
     let mutable resultCount = 0
 
     let searchEntry = new Entry()
+    let buttonPreview = new ToggleButton ()
+    let store = new ListStore(typedefof<obj>)
+    let labelStatus = new Label (Xalign = 0.0f, Justify = Justification.Left)
+    let treeviewSearchResults = new PadTreeView (Model = store, HeadersClickable = true)
+    let preview = TextEditorFactory.CreateNewEditor(TextEditorType.Default)
+
     do
+        let hbox = new HBox ()
         let vbox = new VBox ()
+        this.Pack1 (vbox, true, true)
 
-        let toolbar = new Toolbar 
-                          (
-                            Orientation = Orientation.Vertical,
-                            IconSize = IconSize.Menu,
-                            ToolbarStyle = ToolbarStyle.Icons
-                          )
+        let previewControl = preview :> Control
 
-        this.PackStart (vbox, true, true, 0u)
-        this.PackStart (toolbar, false, false, 0u)
-        let labelStatus = new Label (Xalign = 0.0f, Justify = Justification.Left)
         let hpaned = new HPaned ()
 
-        let store = new ListStore(typedefof<obj>)
-
-        let search _e =
-            Runtime.RunInMainThread(fun() -> store.Clear()) |> ignore
-            resultCount <- 0
-            labelStatus.Text <- "0 results"
-            QuickSearch.search searchEntry.Text
-
-        let reportResult (result:QuickSearchResult) =
-            store.AppendValues([|result|]) |> ignore
-            resultCount <- resultCount + 1
-            labelStatus.Text <- if resultCount = 1 then
-                                    "1 result"
-                                else
-                                    sprintf "%d results" resultCount
-
-        searchEntry.Changed
-        |> FSharp.Control.Reactive.Observable.throttle (TimeSpan.FromMilliseconds 350.)
-        |> Observable.subscribe search |> ignore
-
-        QuickSearch.resultReceived.Subscribe(
-            fun res -> 
-                if res.term = searchEntry.Text then 
-                    Runtime.RunInMainThread(fun() -> reportResult res) |> ignore) |> ignore
-
         searchEntry.GrabFocus()
-        vbox.PackStart (searchEntry, false, false, 0u)
+        let entryRow = new HBox()
+        entryRow.PackStart(searchEntry, true, true, 0u)
+        let mutable previewLoaded = false
+        buttonPreview.Label <- "Preview"
+        buttonPreview.Active <- false
+        buttonPreview.Image <- new ImageView (MonoDevelop.Ide.Gui.Stock.SearchboxSearch.ToString(), IconSize.Menu)
+        buttonPreview.Image.Show ()
+        buttonPreview.Toggled.Add(fun _e -> 
+            if not previewLoaded then
+                previewLoaded <- true
+                this.Pack2 (Control.op_Implicit preview, true, true)
+            this.Child2.Visible <- buttonPreview.Active)
+        buttonPreview.TooltipText <- "Show results in preview window"
+        entryRow.PackEnd(buttonPreview, false, false, 2u)
+        vbox.PackStart (entryRow, false, false, 0u)
         vbox.PackStart (hpaned, true, true, 0u)
         vbox.PackStart (labelStatus, false, false, 0u)
         let resultsScroll = new CompactScrolledWindow ()
         hpaned.Pack1 (resultsScroll, true, true)
-
-        let treeviewSearchResults = new PadTreeView (Model = store, HeadersClickable = true)
 
         treeviewSearchResults.Selection.Mode <- Gtk.SelectionMode.Multiple
         resultsScroll.Add (treeviewSearchResults)
@@ -122,18 +103,14 @@ type QuickSearchWidget() as this =
         let textColumn = treeviewSearchResults.AppendColumn (GettextCatalog.GetString ("Text"), renderer, renderText)
         textColumn.Resizable <- true
         textColumn.Sizing <- TreeViewColumnSizing.Fixed
-        textColumn.FixedWidth <- 500
+        textColumn.FixedWidth <- 300
 
         let pathColumn = treeviewSearchResults.AppendColumn (GettextCatalog.GetString ("Path"), renderer, renderPath)
         pathColumn.SortColumnId <- 3
         pathColumn.Resizable <- true
         pathColumn.Sizing <- TreeViewColumnSizing.Fixed
-        pathColumn.FixedWidth <- 500
-
-        this.ShowAll ()
+        pathColumn.FixedWidth <- 300
         
-        treeviewSearchResults.FixedHeightMode <- true
-
         let openSelectedMatches _e =
             for path in treeviewSearchResults.Selection.GetSelectedRows() do
                 let iter : TreeIter ref = ref Unchecked.defaultof<_>
@@ -143,13 +120,82 @@ type QuickSearchWidget() as this =
                     IdeApp.Workbench.OpenDocument (result.filePath, null, result.line, 0) |> ignore
 
         treeviewSearchResults.RowActivated.Add openSelectedMatches
+        this.ShowAll ()
+
+    let createEditor filename line =
+        let doc = TextEditorFactory.LoadDocument(filename, DesktopService.GetMimeTypeForUri filename)
+        let ctx = new QuickSearchDocumentContext(filename)
+        let editor = TextEditorFactory.CreateNewEditor(ctx, doc, TextEditorType.Default)
+        editor.IsReadOnly <- true
+        editor
+
+    let runInMainThread (f:unit -> unit) =
+        Runtime.RunInMainThread f |> Async.AwaitTask |> Async.Start
+
+    let search _e =
+        Runtime.RunInMainThread(fun() -> store.Clear()) |> ignore
+        resultCount <- 0
+        labelStatus.Text <- "0 results"
+        QuickSearch.search searchEntry.Text
+
+    let reportResult (result:QuickSearchResult) =
+        store.AppendValues([|result|]) |> ignore
+        resultCount <- resultCount + 1
+        labelStatus.Text <- if resultCount = 1 then
+                                "1 result"
+                            else
+                                sprintf "%d results" resultCount
+    let previewChanged _args =
+        if buttonPreview.Active then
+            for path in treeviewSearchResults.Selection.GetSelectedRows() do
+                let iter : TreeIter ref = ref Unchecked.defaultof<_>
+                let res = store.GetIter(iter, path)
+                if res then
+                    let result = store.GetValue (!iter, SearchResultColumn) :?> QuickSearchResult
+
+                    let editor = 
+                        if preview.FileName = result.filePath then
+                            preview
+                        else
+                            let previewContainer = this.Children |> Array.last
+                            this.Remove previewContainer
+                            let editor = createEditor (result.filePath.FullPath |> string) result.line
+                            this.Pack2 (Control.op_Implicit editor, true, true)
+                            editor
+                    let loc = DocumentLocation(result.line, 1)
+                    editor.SetCaretLocation(loc, true, true)
+
+    let searchEntryDisposable =
+        searchEntry.Changed
+        |> FSharp.Control.Reactive.Observable.throttle (TimeSpan.FromMilliseconds 350.)
+        |> Observable.subscribe search
+
+    let resultReceivedDisposable =
+        QuickSearch.resultReceived.Subscribe(
+            fun res -> 
+                if res.term = searchEntry.Text then 
+                    runInMainThread(fun() -> reportResult res))
+
+    let selectionChangedDisposable =
+        treeviewSearchResults.Selection.Changed
+        |> Observable.merge buttonPreview.Toggled
+        |> Observable.filter(fun _args -> searchEntry.Text.Length > 1)
+        |> FSharp.Control.Reactive.Observable.throttle (TimeSpan.FromMilliseconds 350.)
+        |> Observable.subscribe(fun(_args) -> runInMainThread previewChanged)
+
     member x.SearchEntry = searchEntry
+    override x.Dispose() = 
+        [searchEntryDisposable; resultReceivedDisposable; selectionChangedDisposable] 
+        |> Seq.iter(fun d -> d.Dispose())
 
 type QuickSearchPad() =
     inherit MonoDevelop.Ide.Gui.PadContent()
     let view = new QuickSearchWidget()
     member x.SearchEntry = view.SearchEntry
     override x.Control = Control.op_Implicit view
+    override x.Dispose() = 
+        view.Dispose()
+        base.Dispose()
 
 type QuickSearchHandler() =
     inherit CommandHandler()

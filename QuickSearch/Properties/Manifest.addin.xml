@@ -7,7 +7,7 @@
 			<Command id="QuickSearch.QuickSearch"
 			         _label = "QuickJump"
 			         _description="Launch QuickSearch"
-			         macShortcut="Meta|Alt|V"
+			         macShortcut="Alt|F"
 			         defaultHandler="QuickSearch.QuickSearchHandler" />
 		</Category>
 	</Extension>
