@@ -78,7 +78,7 @@ type QuickSearchWidget() as this =
            
             let storeValue = model.GetValue (iter, SearchResultColumn)
             if isNotNull storeValue then
-                let res = storeValue :?> QuickSearchResult
+                let res = storeValue :?> QuickSearchResult 
                 renderer.Text <- f res
 
         let renderFileName (column: TreeViewColumn) (cell: CellRenderer) (model: TreeModel)  (iter: TreeIter) =
@@ -139,7 +139,7 @@ type QuickSearchWidget() as this =
         QuickSearch.search searchEntry.Text
 
     let reportResult (result:QuickSearchResult) =
-        store.AppendValues([|result|]) |> ignore
+        store.AppendValues(result) |> ignore
         resultCount <- resultCount + 1
         labelStatus.Text <- if resultCount = 1 then
                                 "1 result"
@@ -176,6 +176,26 @@ type QuickSearchWidget() as this =
                 if res.term = searchEntry.Text then 
                     runInMainThread(fun() -> reportResult res))
 
+
+    let treeviewKeyDisposable = 
+        treeviewSearchResults.KeyPressEvent.Subscribe
+            (fun args -> LoggingService.LogDebug(sprintf "treeViewport %A" args.Event.Key)
+                         if args.Event.Key = Gdk.Key.Up then
+                             searchEntry.GrabFocus())
+
+    let searchEntryKeyDisposable = 
+        searchEntry.KeyPressEvent.Subscribe
+            (fun args -> LoggingService.LogDebug(sprintf "entry %A" args.Event.Key)
+                         if args.Event.Key = Gdk.Key.Up then
+                             let editor =
+                                 nullable {
+                                     let! doc = IdeApp.Workbench.ActiveDocument
+                                     return doc.Editor
+                                 }
+                             editor.GrabFocus())// |> Option.iter(fun ed -> ed.GrabFocus()))
+                             //MonoDevelop.Ide.IdeApp.CommandService.DispatchCommand(Win);
+                             //searchEntry.GrabFocus())
+
     let selectionChangedDisposable =
         treeviewSearchResults.Selection.Changed
         |> Observable.merge buttonPreview.Toggled
@@ -183,18 +203,18 @@ type QuickSearchWidget() as this =
         |> FSharp.Control.Reactive.Observable.throttle (TimeSpan.FromMilliseconds 350.)
         |> Observable.subscribe(fun(_args) -> runInMainThread previewChanged)
 
-    let disposable = 
-        FSharp.Control.Reactive.Disposables.compose [searchEntryDisposable; resultReceivedDisposable; selectionChangedDisposable] 
+    let disposables =
+        FSharp.Control.Reactive.Disposables.compose [searchEntryDisposable; resultReceivedDisposable; selectionChangedDisposable; treeviewKeyDisposable] 
 
     member x.SearchEntry = searchEntry
-    override x.Dispose() = disposable.Dispose()
+    override x.Dispose() = disposables.Dispose()
 
 type QuickSearchPad() =
     inherit MonoDevelop.Ide.Gui.PadContent()
     let view = new QuickSearchWidget()
     member x.SearchEntry = view.SearchEntry
     override x.Control = Control.op_Implicit view
-    override x.Dispose() = 
+    override x.Dispose() =
         view.Dispose()
         base.Dispose()
 
