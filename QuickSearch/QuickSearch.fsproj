@@ -46,6 +46,9 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
+    <None Include="..\addin-project.xml">
+      <Link>addin-project.xml</Link>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <Reference Include="System.Reactive.Interfaces">
