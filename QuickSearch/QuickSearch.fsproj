@@ -49,14 +49,6 @@
     <None Include="..\addin-project.xml">
       <Link>addin-project.xml</Link>
     </None>
-    <None Include="..\packages\FSharp.Core.4.0.0.1\lib\net40\FSharp.Core.optdata">
-      <Link>FSharp.Core.optdata</Link>
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Include="..\packages\FSharp.Core.4.0.0.1\lib\net40\FSharp.Core.sigdata">
-      <Link>FSharp.Core.sigdata</Link>
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
   </ItemGroup>
   <ItemGroup>
     <Reference Include="System.Reactive.Interfaces">
@@ -77,6 +69,16 @@
   </ItemGroup>
   <ItemGroup>
     <AddinReference Include="MonoDevelop.SourceEditor2" />
+  </ItemGroup>
+  <ItemGroup>
+    <AddinFile Include="..\packages\FSharp.Core.4.0.0.1\lib\net40\FSharp.Core.optdata">
+      <Link>FSharp.Core.optdata</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </AddinFile>
+    <AddinFile Include="..\packages\FSharp.Core.4.0.0.1\lib\net40\FSharp.Core.sigdata">
+      <Link>FSharp.Core.sigdata</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </AddinFile>
   </ItemGroup>
   <Import Project="$(FSharpTargetsPath)" />
   <ProjectExtensions>
